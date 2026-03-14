@@ -1,0 +1,61 @@
+name: Build CinéBoost Desktop App
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            artifact: CinéBoost-Setup-*.exe
+          - os: macos-latest
+            platform: mac
+            artifact: CinéBoost-*.dmg
+          - os: ubuntu-latest
+            platform: linux
+            artifact: CinéBoost-*.AppImage
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Vite app
+        run: npm run build
+
+      - name: Build Electron app for ${{ matrix.platform }}
+        run: npm run electron:build:${{ matrix.platform }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineboost-${{ matrix.platform }}
+          path: |
+            release/${{ matrix.artifact }}
+          retention-days: 30
+
+      - name: Create Release (if tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/${{ matrix.artifact }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
